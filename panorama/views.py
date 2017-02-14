@@ -10,17 +10,6 @@ from django.core.management import call_command
 STATIC_PREFIX = '/static/panorama/'
 
 
-def index(request):
-    return HttpResponse(
-        'django version: {0} <br/><br/>'
-        '<a href="/panorama/view?scene_id=first">查看场景first</a><br/>'
-        '<a href="/panorama/edit?scene_id=first">编辑场景first</a><br/>'
-        '<a href="/panorama/view?scene_id=second">查看场景second</a><br/>'
-        '<a href="/panorama/edit?scene_id=second">编辑场景second</a><br/>'
-        '<br/><br/><a href="/static/f22fight.html">3D场景</a>'.format(django.get_version())
-    )
-
-
 def view(request):
     return render_to_response('panorama/view.html')
 
