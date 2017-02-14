@@ -291,3 +291,7 @@ def init_database(request):
     call_command('migrate')
     call_command('loaddata', 'init_panorama.json')
     return HttpResponse("success！")
+
+
+def init_database2(request):
+    return HttpResponse("init_database2")
