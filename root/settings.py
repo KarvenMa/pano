@@ -76,7 +76,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'PORT': '4050',
-        'NAME': 'eaAAGHWPjQlnoZxLhJxE',
+        'NAME': 'RGyRAidlorxJxcZwUrJR',
         'USER': '4c7d384d945d44c4ac7301d11d377535',
         'PASSWORD': '3c4a1893d499411ca51b68e5deec281c',
         'HOST': 'sqld.duapp.com',
