@@ -1,4 +1,2 @@
-.idea
-*.pyc
-/static/
-/db.sqlite3
+.idea/
+panorama/static

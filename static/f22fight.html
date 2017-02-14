@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>游戏</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            background: pink;
+            position: relative;
+        }
+
+        #container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        #container canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+    </style>
+</head>
+<body>
+<div id="container"></div>
+<script src="//cdn.bootcss.com/jquery/2.2.4/jquery.min.js"></script>
+<script src="/static/panorama/lib/three.js/three.js"></script>
+<script src="/static/panorama/lib/three.js/OrbitControls.js"></script>
+<script src="/static/panorama/lib/three.js/OBJLoader.js"></script>
+<script src="/static/panorama/lib/three.js/ImprovedNoise.js"></script>
+<script src="/static/panorama/lib/three.js/stats.min.js"></script>
+<script>
+
+    var renderer, scene, camera, orbitControls;
+    var canvasEle;
+    $(function () {
+        "use strict";
+
+        var $stage = $('#container');
+        var STAGE_WIDTH = $stage.width(), STAGE_HEIGHT = $stage.height();
+//        var textureLoader = new THREE.TextureLoader();
+        var fieldOfView = 75, aspectRatio = STAGE_WIDTH / STAGE_HEIGHT, near = 0.1, far = 1000;
+
+        var seaGeo, seaMat, sea;
+        var cockpitGeo, cockpitMat, cockpit;
+        var targetPX, targetPY, targetXSpeed, normalXSpeed = 0.005;
+        var flyObject;
+        var airplane;
+        var moveDirection = 0;  // 1：上 2：下 3：前 4：后 5：左 6：右
+        var currentPos = null;
+        var directionalLightHelper = null;
+        // 创建一个新的数组存储与每个顶点关联的值：
+        var waves = [];
+
+        function init() {
+            // 初始化渲染器
+            renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+            renderer.setClearColor(0x333333);
+            renderer.setSize(STAGE_WIDTH, STAGE_HEIGHT);
+            renderer.shadowMap.enabled = true;  // 打开阴影地图
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.name = 'scene';
+            // 创建光照
+
+            var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(1, 1, 1).normalize();
+            directionalLight.castShadow = true;  // 开启光源投影
+            directionalLight.name = 'directionalLight';
+            scene.add(directionalLight);
+//            directionalLightHelper = new THREE.DirectionalLightHelper(directionalLight, 100);
+//            scene.add(directionalLightHelper);
+            var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            ambientLight.name = 'ambientLight';
+            scene.add(ambientLight);
+
+            // 创建海洋
+            seaGeo = new THREE.CylinderGeometry(1000, 1000, 5000, 50, 50);  // 圆柱体模拟
+            seaGeo.mergeVertices();
+            for (var i = 0; i < seaGeo.vertices.length; i++) {
+                // 获取每个顶点
+                var v = seaGeo.vertices[i];
+                // 存储一些关联的数值
+                waves.push({
+                    y: v.y,
+                    x: v.x,
+                    z: v.z,
+                    // 随机角度
+                    ang: Math.random() * Math.PI * 2,
+                    // 随机距离
+                    amp: 5 + Math.random() * 50,
+                    // 在0.016至0.048度/帧之间的随机速度
+                    speed: 0.01 + Math.random() * 0.04
+                });
+            }
+
+            seaMat = new THREE.MeshPhongMaterial({
+                color: 0x039a9a,
+                transparent: true,
+                opacity: .8,
+                shading: THREE.FlatShading
+            });
+            sea = new THREE.Mesh(seaGeo, seaMat);
+            sea.position.set(0, 0, 0);
+            sea.rotateZ(Math.PI / 2);
+            sea.rotation.x = 0;
+            sea.name = 'sea';
+            sea.receiveShadow = true;
+            scene.add(sea);
+
+
+            var geom = new THREE.CylinderGeometry(600, 600, 800, 40, 10);
+            geom.applyMatrix(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+
+            // 重点：通过合并顶点，我们确保海浪的连续性
+            geom.mergeVertices();
+
+//            var quality = 1;
+//            var perlin = new ImprovedNoise();
+//            console.log(v, Math.abs(perlin.noise(v.x / quality, v.y / quality, v.z) * quality * 1.75));
+
+            flyObject = new THREE.Object3D();
+            flyObject.name = 'flyObject';
+            flyObject.position.set(0, 1100, 500);
+
+            scene.add(flyObject);
+
+            // 将canvas元素添加到容器下
+            canvasEle = renderer.domElement;
+            $stage[0].appendChild(canvasEle);
+
+            targetPX = flyObject.position.x;
+            targetPY = flyObject.position.y;
+            targetXSpeed = normalXSpeed;
+
+            var manager = new THREE.LoadingManager();
+            manager.onProgress = function (item, loaded, total) {
+                console.log(item, loaded, total);
+            };
+            var onProgress = function (xhr) {
+                if (xhr.lengthComputable) {
+                    var percentComplete = xhr.loaded / xhr.total * 100;
+                    console.log(Math.round(percentComplete, 2) + '% downloaded');
+                }
+            };
+            var onError = function (xhr) {
+            };
+            var loader = new THREE.OBJLoader(manager);
+            loader.load('objects/FA-22_Raptor.obj', function (object) {
+                airplane = object;
+                airplane.castShadow = true;
+                airplane.receiveShadow = true;
+                airplane.name = 'airplane';
+                flyObject.add(airplane);
+
+                // 创建相机
+                camera = new THREE.PerspectiveCamera(fieldOfView, aspectRatio, near, far);
+                flyObject.add(camera);
+                camera.position.set(0, 100, 150);
+                // 创建控制器
+                orbitControls = new THREE.OrbitControls(camera, canvasEle);
+                orbitControls.enablePan = false;
+                orbitControls.enableKeys = false;
+                orbitControls.target = airplane.position;
+
+                // 循环渲染
+                loop();
+            }, onProgress, onError);
+
+            // 绑定事件
+            document.onkeydown = function (e) {
+                console.log(e.keyCode);
+                currentPos = flyObject.position.clone();
+                switch (e.keyCode) {
+                    case (32):  // Space：上
+                        moveDirection = 1;
+                        break;
+                    case (17):  // Ctrl：下
+                        moveDirection = 2;
+                        break;
+                    case (87):  // W：前
+                        moveDirection = 3;
+                        break;
+                    case (83):  // S：后
+                        moveDirection = 4;
+                        break;
+                    case (65):  // A：左
+                        moveDirection = 5;
+                        break;
+                    case (68):  // D：右
+                        moveDirection = 6;
+                        break;
+                }
+            };
+
+            document.onkeyup = function (e) {
+                moveDirection = 0;
+            };
+        }
+
+        var stats = new Stats();
+        document.body.appendChild(stats.dom);
+
+        function loop() {
+
+            stats.update();
+//            directionalLightHelper.update();
+
+
+            // 获取顶点
+            var verts = seaGeo.vertices;
+            var l = verts.length;
+
+            for (var i = 0; i < l; i++) {
+                var v = verts[i];
+
+                // 获取关联的值
+                var vprops = waves[i];
+
+                // 更新顶点的位置
+                v.x = vprops.x + Math.cos(vprops.ang) * vprops.amp;
+                v.y = vprops.y + Math.sin(vprops.ang) * vprops.amp;
+
+                // 下一帧自增一个角度
+                vprops.ang += vprops.speed;
+            }
+
+            // 告诉渲染器代表大海的几何体发生改变
+            // 事实上，为了维持最好的性能
+            // Three.js会缓存几何体和忽略一些修改
+            // 除非加上这句
+            seaGeo.verticesNeedUpdate = true;
+
+            switch (moveDirection) {
+                case 1:  // 上
+                    targetPY += 5;
+                    break;
+                case 2:  // 下
+                    targetPY -= 5;
+                    break;
+                case 3:  // 前
+                    targetXSpeed += 0.05;
+//                    airplane.rotation.z += (flyObject.position.x - targetPX) * 0.0064;
+                    break;
+                case 4:  // 后
+                    targetXSpeed -= 0.05;
+                    break;
+                case 5:  // 左
+                    targetPX -= 5;
+                    break;
+                case 6:  // 右
+                    targetPX += 5;
+                    break;
+            }
+
+            flyObject.position.x += (targetPX - flyObject.position.x) * 0.1;
+            flyObject.position.y += (targetPY - flyObject.position.y) * 0.1;
+
+            airplane.rotation.x = (flyObject.position.y - targetPY) * 0.002;
+            airplane.rotation.z = (flyObject.position.x - targetPX) * 0.008;
+            airplane.rotation.y = (flyObject.position.x - targetPX) * 0.0044;
+
+            targetXSpeed = ((targetXSpeed - normalXSpeed) * 0.1 + 0.005);
+            sea.rotation.x += targetXSpeed;
+
+
+            orbitControls.update();
+            renderer.render(scene, camera);
+            // 重新调用 render() 函数
+            requestAnimationFrame(loop);
+        }
+
+        window.addEventListener('load', init, false);
+
+        // 监听窗口大小改变事件
+        window.addEventListener('resize', function () {
+            STAGE_WIDTH = $stage.width();
+            STAGE_HEIGHT = $stage.height();
+            renderer.setSize(STAGE_WIDTH, STAGE_HEIGHT);
+            camera.aspect = STAGE_WIDTH / STAGE_HEIGHT;
+            camera.updateProjectionMatrix();
+            renderer.render(scene, camera);
+        }, false);
+    });
+
+</script>
+
+</body>
+</html>
