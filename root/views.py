@@ -23,9 +23,23 @@ def init_database(request):
     :param request:
     :return:
     """
+    import MySQLdb
+    dbname = "eaAAGHWPjQlnoZxLhJxE"  # 数据库名称
+    api_key = "4c7d384d945d44c4ac7301d11d377535"  # 用户AK
+    secret_key = "3c4a1893d499411ca51b68e5deec281c"  # 用户SK
+
+    # 连接MySQL服务
+    mydb = MySQLdb.connect(
+        host="sqld.duapp.com",
+        port=4050,
+        user=api_key,
+        passwd=secret_key,
+        db=dbname)
+
+    cursor = mydb.cursor()
     file_path = os.path.join(BASE_DIR, 'panorama/fixtures/panorama.sql'),
-    print file_path[0]
     sql = open(file_path[0], 'r').read()
     cursor = connection.cursor()
     cursor.execute(sql)
+    mydb.close()
     return HttpResponse("reset database succeed!")
