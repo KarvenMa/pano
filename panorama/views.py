@@ -274,13 +274,3 @@ def update_seller(request):
             '<script>window.parent.%s({ success: true, seller:{name: "%s",desc: "%s",logo: "%s"}});</script>' %
             (cb, seller.name, seller.desc, seller.logo.url))
     return HttpResponse("<script>window.parent.%s({ success: false});</script>" % cb)
-
-
-def init_database(request):
-    call_command('migrate')
-    call_command('loaddata', 'init_panorama.json')
-    return HttpResponse("success！")
-
-
-def init_database2(request):
-    return HttpResponse("init_database2")
