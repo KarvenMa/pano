@@ -2,7 +2,6 @@
 import os
 import django
 from django.http import HttpResponse
-from django.db import connection
 from settings import BASE_DIR
 
 
@@ -39,7 +38,6 @@ def init_database(request):
     cursor = mydb.cursor()
     file_path = os.path.join(BASE_DIR, 'panorama/fixtures/panorama.sql'),
     sql = open(file_path[0], 'r').read()
-    cursor = connection.cursor()
     cursor.execute(sql)
     mydb.close()
     return HttpResponse("reset database succeed!")
